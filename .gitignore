@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Env / secrets
+.env
+*.env
+
+# Backups / temp / junk
+bot_backup.py
+write_bot.py
+test_logic.py
+=
+open('bot.py','w')
