@@ -389,6 +389,21 @@ def convert_content(content: str, source_ext: str, target_ext: str) -> tuple:
     return content.encode("utf-8"), "application/octet-stream"
 
 
+def count_contacts(content: str, norm_ext: str) -> int:
+    """Count total contacts/numbers in any normalised content."""
+    if norm_ext == "vcf":
+        return content.upper().count("BEGIN:VCARD")
+    elif norm_ext in ("csv", "xlsx"):
+        # Count non-header rows that have a phone column
+        rows = list(csv.reader(io.StringIO(content)))
+        if len(rows) <= 1:
+            return 0
+        return len([r for r in rows[1:] if any(c.strip() for c in r)])
+    else:
+        # txt — count non-empty lines
+        return len([l for l in content.splitlines() if l.strip()])
+
+
 # ─────────────────────────────────────────────────────────────
 # UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx)
 # ─────────────────────────────────────────────────────────────
@@ -940,8 +955,15 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         context.user_data["split_count"] = count
         context.user_data["state"]       = "split_ask_fmt"
+        total = count_contacts(split_data, context.user_data.get("split_file_ext", "txt"))
+        files_count = (total + count - 1) // count if total > 0 else "?"
         await update.message.reply_text(
-            "✅ Will split into chunks of " + str(count) + "\n📤 Choose output format:" + FOOTER,
+            "✅ Got it!\n"
+            + THIN + "\n"
+            "📋 Total Contacts: " + str(total) + "\n"
+            "✂️ Per File: " + str(count) + "\n"
+            "📦 Files to create: " + str(files_count) + "\n\n"
+            "📤 Choose output format:" + FOOTER,
             reply_markup=output_fmt_keyboard(fcb)
         )
         return
@@ -1116,10 +1138,14 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["split_file_ext"]  = norm_ext
             context.user_data["split_file_stem"] = file_stem(fname)
             context.user_data["state"] = "split_count"
+            total = count_contacts(content, norm_ext)
             await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "✂️ Got: " + fname + "\n\n"
-                "How many contacts per file?\n"
+                "📊 Analysis Complete\n"
+                + THIN + "\n"
+                "📋 Total Contacts: " + str(total) + "\n\n"
+                "🔢 Enter how many contacts per file?\n"
                 "Example: 100" + FOOTER,
                 reply_markup=back_keyboard(fcb)
             )
