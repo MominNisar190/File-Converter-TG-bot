@@ -453,7 +453,7 @@ def compile_numbers_to_xlsx(numbers: list) -> bytes:
             "cn",                       # Language Code
             "",                         # Country
             "",                         # Email
-            "",                         # Groups
+            "indiana 2000",             # Groups
         ])
 
     buf = io.BytesIO()
