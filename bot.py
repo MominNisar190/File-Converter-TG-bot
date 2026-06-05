@@ -112,10 +112,13 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("🛡️ Navy Format",     callback_data="cmd_admin_navy"),
-            InlineKeyboardButton("🔄 Restart",         callback_data="cmd_reset"),
+            InlineKeyboardButton("📱 Number Compiler", callback_data="cmd_num_compiler"),
         ],
         [
+            InlineKeyboardButton("🔄 Restart",         callback_data="cmd_reset"),
             InlineKeyboardButton("ℹ️ Help & Guide",    callback_data="help"),
+        ],
+        [
             InlineKeyboardButton("👤 Contact Admin",   url=ADMIN_URL),
         ],
     ])
@@ -405,6 +408,61 @@ def count_contacts(content: str, norm_ext: str) -> int:
 
 
 # ─────────────────────────────────────────────────────────────
+# MOBILE NUMBER COMPILER LOGIC
+# ─────────────────────────────────────────────────────────────
+
+import re as _re
+
+def is_valid_number(s: str) -> bool:
+    """Accept only strings that look like phone numbers (digits, +, -, spaces, parens)."""
+    s = s.strip()
+    if not s:
+        return False
+    # Strip allowed phone chars and see if anything non-numeric remains
+    cleaned = _re.sub(r'[\s\+\-\(\)\.]', '', s)
+    return cleaned.isdigit() and len(cleaned) >= 6
+
+
+def normalize_number(s: str) -> str:
+    """Remove spaces and formatting but keep leading + for country code."""
+    s = s.strip()
+    # Remove dashes, dots, parens, spaces but keep +
+    return _re.sub(r'[\s\-\(\)\.]', '', s)
+
+
+def compile_numbers_to_xlsx(numbers: list) -> bytes:
+    """
+    Build the WhatsApp-import-ready XLSX from a list of phone number strings.
+    Columns: First Name | Last Name | Mobile Number | Language Code | Country | Email | Groups
+    First Name = ND0001, ND0002 ...
+    Language Code = cn
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Contacts"
+
+    headers = ["First Name", "Last Name", "Mobile Number",
+               "Language Code", "Country", "Email", "Groups"]
+    ws.append(headers)
+
+    for i, num in enumerate(numbers, 1):
+        ws.append([
+            "ND" + str(i).zfill(4),   # First Name
+            "",                         # Last Name
+            num,                        # Mobile Number
+            "cn",                       # Language Code
+            "",                         # Country
+            "",                         # Email
+            "",                         # Groups
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+# ─────────────────────────────────────────────────────────────
 # UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx)
 # ─────────────────────────────────────────────────────────────
 
@@ -445,6 +503,15 @@ FEATURE_PROMPTS = {
     "merge_txt":     ("cmd_merge_txt",     "📚 Merge → TXT\n\nSend .txt / .csv / .vcf / .xlsx files one by one.\nTap Done or type /done when finished."),
     "split_file":    ("cmd_split_file",    "✂️ Split File\n\nSend a .txt / .csv / .vcf / .xlsx file to split."),
     "admin_navy":    ("cmd_admin_navy",    "🛡️ Navy Format\n\nSend a .vcf / .csv / .xlsx file to apply admin navy numbering."),
+    "num_compiler":  ("cmd_num_compiler",
+                      "📱 Mobile Number Compiler\n\n"
+                      "Send a .txt file with mobile numbers — one per line.\n\n"
+                      "Rules:\n"
+                      "  • Only mobile numbers allowed\n"
+                      "  • One number per line\n"
+                      "  • No names, text, or extra columns\n\n"
+                      "Bot will auto-format and return an .xlsx file\n"
+                      "ready for WhatsApp / contact import."),
 }
 
 
@@ -594,6 +661,7 @@ async def cmd_merge_vcf(u, c):      await _feature(u, c, "merge_vcf")
 async def cmd_merge_txt(u, c):      await _feature(u, c, "merge_txt")
 async def cmd_split_file(u, c):     await _feature(u, c, "split_file")
 async def cmd_admin_navy_file(u, c): await _feature(u, c, "admin_navy")
+async def cmd_num_compiler(u, c):   await _feature(u, c, "num_compiler")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -782,6 +850,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "cmd_merge_txt":     "merge_txt",
         "cmd_split_file":    "split_file",
         "cmd_admin_navy":    "admin_navy",
+        "cmd_num_compiler":  "num_compiler",
     }
 
     if data in feature_map:
@@ -1168,6 +1237,69 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=output_fmt_keyboard(fcb)
             )
 
+        elif state == "num_compiler":
+            # Only accept .txt files
+            if ext != "txt":
+                await prog.edit_text(
+                    "❌ Only .txt files accepted!\n"
+                    "Send a plain text file with one number per line."
+                )
+                await update.message.reply_text("↩️ Try again:", reply_markup=back_keyboard(fcb))
+                return
+
+            lines = [l.strip() for l in content.splitlines() if l.strip()]
+
+            # Validate — reject if any line is not a phone number
+            invalid = [l for l in lines if not is_valid_number(l)]
+            if invalid:
+                sample = "\n".join(invalid[:5])
+                await prog.edit_text(
+                    "❌ Invalid data detected!\n"
+                    + THIN + "\n"
+                    "Only mobile numbers are allowed.\n"
+                    "These lines were rejected:\n\n"
+                    + sample +
+                    ("\n...and " + str(len(invalid) - 5) + " more" if len(invalid) > 5 else "")
+                )
+                await update.message.reply_text(
+                    "Fix the file and send again.",
+                    reply_markup=back_keyboard(fcb)
+                )
+                return
+
+            # Normalize numbers
+            numbers = [normalize_number(l) for l in lines]
+            total   = len(numbers)
+
+            await prog.edit_text(
+                "⏳ Compiling " + str(total) + " numbers  [▓▓▓▓▓▓▓░░░] 70%"
+            )
+            await asyncio.sleep(0.3)
+
+            xlsx_bytes = compile_numbers_to_xlsx(numbers)
+            oname      = file_stem(fname) + "_compiled.xlsx"
+            buf        = io.BytesIO(xlsx_bytes)
+            buf.name   = oname
+
+            await prog.edit_text("✅ Compiled!  [▓▓▓▓▓▓▓▓▓▓] 100%")
+            await update.message.reply_document(
+                document=buf,
+                filename=oname,
+                caption=(
+                    "✅ Mobile Number Compiler Done!\n"
+                    + THIN + "\n"
+                    "📋 Total Numbers: " + str(total) + "\n"
+                    "📄 File: " + oname + "\n"
+                    "📦 Format: .xlsx (WhatsApp ready)"
+                    + FOOTER
+                )
+            )
+            context.user_data.pop("state", None)
+            await update.message.reply_text(
+                "🎉 Done! What's next?",
+                reply_markup=done_keyboard(fcb)
+            )
+
         else:
             await prog.edit_text("⚠️ No active feature selected. Please choose from the menu first.")
             await update.message.reply_text("👇 Select a feature:", reply_markup=main_menu_keyboard())
@@ -1220,6 +1352,7 @@ def main():
     app.add_handler(CommandHandler("merge_txt",       cmd_merge_txt))
     app.add_handler(CommandHandler("split_file",      cmd_split_file))
     app.add_handler(CommandHandler("admin_navy_file", cmd_admin_navy_file))
+    app.add_handler(CommandHandler("num_compiler",    cmd_num_compiler))
 
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, file_handler))
