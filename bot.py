@@ -46,12 +46,10 @@ THIN    = "─────────────────────"
 def is_premium(user_id: int) -> bool:
     return user_id in premium_users
 
-
 def file_stem(fname: str) -> str:
     if "." in fname:
         return fname.rsplit(".", 1)[0]
     return fname or "output"
-
 
 def premium_required_msg() -> str:
     return (
@@ -62,27 +60,9 @@ def premium_required_msg() -> str:
         + FOOTER
     )
 
-
 # ─────────────────────────────────────────────────────────────
 # ANIMATED LOADING HELPER
 # ─────────────────────────────────────────────────────────────
-
-async def show_progress(msg, label: str = "Processing"):
-    """Animate a progress bar by editing an existing message."""
-    frames = [
-        label + "  [▓▓░░░░░░░░] 20%",
-        label + "  [▓▓▓▓░░░░░░] 40%",
-        label + "  [▓▓▓▓▓▓░░░░] 60%",
-        label + "  [▓▓▓▓▓▓▓▓░░] 80%",
-        label + "  [▓▓▓▓▓▓▓▓▓▓] 100% ✅",
-    ]
-    for frame in frames:
-        await asyncio.sleep(0.35)
-        try:
-            await msg.edit_text("⏳ " + frame)
-        except Exception:
-            pass
-
 
 # ─────────────────────────────────────────────────────────────
 # KEYBOARDS
@@ -123,7 +103,6 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         ],
     ])
 
-
 def shortcut_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         [
@@ -136,14 +115,12 @@ def shortcut_keyboard() -> ReplyKeyboardMarkup:
         input_field_placeholder="Choose a feature or type a command..."
     )
 
-
 def back_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
     rows = []
     if feature_cb:
         rows.append([InlineKeyboardButton("◀️ Back", callback_data=feature_cb)])
     rows.append([InlineKeyboardButton("🏠 Main Menu", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(rows)
-
 
 def output_fmt_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
     rows = [
@@ -161,14 +138,12 @@ def output_fmt_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton("🏠 Main Menu", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(rows)
 
-
 def done_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
     rows = []
     if feature_cb:
         rows.append([InlineKeyboardButton("🔁 Use Again", callback_data=feature_cb)])
     rows.append([InlineKeyboardButton("🏠 Main Menu", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(rows)
-
 
 def compiler_fmt_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
     """Output format picker for Number Compiler — includes XLS option."""
@@ -187,7 +162,6 @@ def compiler_fmt_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton("◀️ Back", callback_data=feature_cb)])
     rows.append([InlineKeyboardButton("🏠 Main Menu", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(rows)
-
 
 # ─────────────────────────────────────────────────────────────
 # MESSAGE TEMPLATES
@@ -209,7 +183,6 @@ def welcome_text() -> str:
         + FOOTER
     )
 
-
 def dashboard_text() -> str:
     return (
         "╔══════════════════════════════╗\n"
@@ -221,7 +194,6 @@ def dashboard_text() -> str:
         + DIVIDER
         + FOOTER
     )
-
 
 def help_text() -> str:
     return (
@@ -250,7 +222,6 @@ def help_text() -> str:
         + FOOTER
     )
 
-
 # ─────────────────────────────────────────────────────────────
 # CONVERSION LOGIC
 # ─────────────────────────────────────────────────────────────
@@ -265,7 +236,6 @@ def txt_to_vcf(text: str) -> str:
         )
     return "\n".join(vcf_entries)
 
-
 def vcf_to_txt(text: str) -> str:
     numbers = []
     for line in text.splitlines():
@@ -275,7 +245,6 @@ def vcf_to_txt(text: str) -> str:
             if len(parts) >= 2:
                 numbers.append(parts[-1].strip())
     return "\n".join(numbers)
-
 
 def parse_vcf(text: str) -> list:
     entries = []
@@ -294,7 +263,6 @@ def parse_vcf(text: str) -> list:
             name, phone = "Unknown", ""
     return entries
 
-
 def csv_to_vcf(text: str) -> str:
     reader = csv.DictReader(io.StringIO(text))
     vcf_entries = []
@@ -312,7 +280,6 @@ def csv_to_vcf(text: str) -> str:
         i += 1
     return "\n".join(vcf_entries)
 
-
 def rename_vcf_contacts(text: str, prefix: str) -> str:
     lines = text.splitlines()
     result = []
@@ -324,7 +291,6 @@ def rename_vcf_contacts(text: str, prefix: str) -> str:
         else:
             result.append(line)
     return "\n".join(result)
-
 
 def split_contacts(text: str, count: int, ext: str) -> list:
     chunks = []
@@ -344,7 +310,6 @@ def split_contacts(text: str, count: int, ext: str) -> list:
             chunks.append("\n".join(lines[i:i + count]))
     return chunks
 
-
 def admin_navy_format(text: str) -> str:
     entries = parse_vcf(text)
     vcf_entries = []
@@ -355,7 +320,6 @@ def admin_navy_format(text: str) -> str:
             "TEL:" + phone + "\nEND:VCARD"
         )
     return "\n".join(vcf_entries)
-
 
 def content_to_csv_bytes(content: str, source_ext: str) -> bytes:
     output = io.StringIO()
@@ -370,7 +334,6 @@ def content_to_csv_bytes(content: str, source_ext: str) -> bytes:
         ):
             writer.writerow(["Contact " + str(i), line])
     return output.getvalue().encode("utf-8")
-
 
 def content_to_xlsx_bytes(content: str, source_ext: str) -> bytes:
     wb = openpyxl.Workbook()
@@ -389,7 +352,6 @@ def content_to_xlsx_bytes(content: str, source_ext: str) -> bytes:
     wb.save(buf)
     buf.seek(0)
     return buf.read()
-
 
 def convert_content(content: str, source_ext: str, target_ext: str) -> tuple:
     if target_ext == "txt":
@@ -410,7 +372,6 @@ def convert_content(content: str, source_ext: str, target_ext: str) -> tuple:
                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     return content.encode("utf-8"), "application/octet-stream"
 
-
 def count_contacts(content: str, norm_ext: str) -> int:
     """Count total contacts/numbers in any normalised content."""
     if norm_ext == "vcf":
@@ -424,7 +385,6 @@ def count_contacts(content: str, norm_ext: str) -> int:
     else:
         # txt — count non-empty lines
         return len([l for l in content.splitlines() if l.strip()])
-
 
 # ─────────────────────────────────────────────────────────────
 # MOBILE NUMBER COMPILER LOGIC
@@ -441,13 +401,11 @@ def is_valid_number(s: str) -> bool:
     cleaned = _re.sub(r'[\s\+\-\(\)\.]', '', s)
     return cleaned.isdigit() and len(cleaned) >= 6
 
-
 def normalize_number(s: str) -> str:
     """Remove spaces and formatting but keep leading + for country code."""
     s = s.strip()
     # Remove dashes, dots, parens, spaces but keep +
     return _re.sub(r'[\s\-\(\)\.]', '', s)
-
 
 def compile_numbers_to_xlsx(numbers: list) -> bytes:
     """
@@ -479,7 +437,6 @@ def compile_numbers_to_xlsx(numbers: list) -> bytes:
     wb.save(buf)
     buf.seek(0)
     return buf.read()
-
 
 def compile_numbers_to_output(numbers: list, fmt: str) -> tuple:
     """
@@ -513,7 +470,6 @@ def compile_numbers_to_output(numbers: list, fmt: str) -> tuple:
     else:  # txt
         return "\n".join(numbers).encode("utf-8"), "txt"
 
-
 # ─────────────────────────────────────────────────────────────
 # UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx / .xls)
 # ─────────────────────────────────────────────────────────────
@@ -536,7 +492,6 @@ def read_file_content(raw: bytes, ext: str) -> tuple:
         return out.getvalue(), "csv"
     else:
         return raw.decode("utf-8", errors="ignore"), ext
-
 
 # ─────────────────────────────────────────────────────────────
 # FEATURE PROMPTS
@@ -563,7 +518,6 @@ FEATURE_PROMPTS = {
                       "  • Numbers extracted automatically\n\n"
                       "Bot will compile & ask your output format."),
 }
-
 
 # ─────────────────────────────────────────────────────────────
 # COMMAND HANDLERS
@@ -597,7 +551,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
     )
 
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     back_cb = "back_to_welcome"
     if update.callback_query and is_premium(update.callback_query.from_user.id):
@@ -618,7 +571,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     msg = (
@@ -634,7 +586,6 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         kb = done_keyboard() if is_premium(update.callback_query.from_user.id) else None
         await update.callback_query.edit_message_text(msg, reply_markup=kb)
-
 
 async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -685,7 +636,6 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_keyboard()
         )
 
-
 # ─────────────────────────────────────────────────────────────
 # FEATURE COMMAND SHORTCUTS
 # ─────────────────────────────────────────────────────────────
@@ -699,7 +649,6 @@ async def _feature(update: Update, context: ContextTypes.DEFAULT_TYPE, state: st
     context.user_data["active_feature_cb"] = fcb
     await update.message.reply_text(prompt + FOOTER, reply_markup=back_keyboard(fcb))
 
-
 async def cmd_txt_to_vcf(u, c):     await _feature(u, c, "txt_to_vcf")
 async def cmd_txtvcf_to_csv(u, c):  await _feature(u, c, "txtvcf_to_csv")
 async def cmd_csv_to_vcf(u, c):     await _feature(u, c, "csv_to_vcf")
@@ -712,7 +661,6 @@ async def cmd_merge_txt(u, c):      await _feature(u, c, "merge_txt")
 async def cmd_split_file(u, c):     await _feature(u, c, "split_file")
 async def cmd_admin_navy_file(u, c): await _feature(u, c, "admin_navy")
 async def cmd_num_compiler(u, c):   await _feature(u, c, "num_compiler")
-
 
 # ─────────────────────────────────────────────────────────────
 # CALLBACK QUERY HANDLER
@@ -830,18 +778,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=back_keyboard(fcb)
                 )
                 return
-            prog = await query.edit_message_text("⏳ Splitting  [▓▓░░░░░░░░] 20%")
-            await asyncio.sleep(0.4)
+            prog = None
             chunks = split_contacts(split_data, count, orig_ext)
-            await prog.edit_text("⏳ Splitting  [▓▓▓▓▓▓░░░░] 60%")
-            await asyncio.sleep(0.3)
             for i, chunk in enumerate(chunks, 1):
                 file_bytes, _ = convert_content(chunk, orig_ext, chosen_ext)
                 oname = split_stem + "_part" + str(i) + "." + chosen_ext
                 buf = io.BytesIO(file_bytes)
                 buf.name = oname
                 await query.message.reply_document(document=buf, filename=oname)
-            await prog.edit_text("✅ Split complete!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             context.user_data.pop("state", None)
             context.user_data.pop("split_file_data", None)
             context.user_data.pop("split_file_ext", None)
@@ -862,10 +806,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         source_ext = context.user_data.get("pending_source_ext", "vcf")
         input_count = context.user_data.get("pending_input_count", 0)
 
-        prog = await query.edit_message_text(
-            "⏳ Converting to ." + chosen_ext + "  [▓▓▓▓▓░░░░░] 50%"
-        )
-        await asyncio.sleep(0.5)
+        prog = None
         file_bytes, _ = convert_content(result, source_ext, chosen_ext)
         oname = stem + "." + chosen_ext
 
@@ -881,7 +822,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         buf   = io.BytesIO(file_bytes)
         buf.name = oname
-        await prog.edit_text("✅ Conversion complete!  [▓▓▓▓▓▓▓▓▓▓] 100%")
         await query.message.reply_document(
             document=buf,
             filename=oname,
@@ -922,17 +862,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        prog = await query.edit_message_text(
-            "⏳ Compiling " + str(total) + " numbers as ." + chosen_ext + "  [▓▓▓▓▓░░░░░] 50%"
-        )
-        await asyncio.sleep(0.4)
+        prog = None
 
         file_bytes, out_ext = compile_numbers_to_output(numbers, chosen_ext)
         oname = stem + "_compiled." + out_ext
         buf   = io.BytesIO(file_bytes)
         buf.name = oname
 
-        await prog.edit_text("✅ Compiled!  [▓▓▓▓▓▓▓▓▓▓] 100%")
         await query.message.reply_document(
             document=buf,
             filename=oname,
@@ -984,7 +920,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=back_keyboard(data)
         )
 
-
 # ─────────────────────────────────────────────────────────────
 # TEXT MESSAGE HANDLER
 # ─────────────────────────────────────────────────────────────
@@ -1034,11 +969,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             premium_users.add(user_id)
             first = update.effective_user.first_name or "there"
             msg = await update.message.reply_text("🔓 Verifying code...")
-            await asyncio.sleep(0.5)
             await msg.edit_text("✅ Code Accepted!\n🚀 Unlocking premium features...")
-            await asyncio.sleep(0.8)
             await msg.edit_text("🎉 Premium Access Granted!\n\nWelcome, " + first + "! 👑")
-            await asyncio.sleep(0.5)
             await update.message.reply_text(
                 "⌨️ Shortcut keyboard activated!" + FOOTER,
                 reply_markup=shortcut_keyboard()
@@ -1158,7 +1090,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_menu_keyboard()
     )
 
-
 # ─────────────────────────────────────────────────────────────
 # FILE / DOCUMENT HANDLER
 # ─────────────────────────────────────────────────────────────
@@ -1186,22 +1117,15 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ext   = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
     fcb   = context.user_data.get("active_feature_cb")
 
-    prog = await update.message.reply_text("⏳ Receiving file  [▓▓░░░░░░░░] 20%")
+    prog = None
 
     try:
         tg_file = await doc.get_file()
         raw     = await tg_file.download_as_bytearray()
         raw     = bytes(raw)
 
-        await prog.edit_text("⏳ Processing  [▓▓▓▓▓░░░░░] 50%")
-        await asyncio.sleep(0.3)
-
         # ── Validate extension is one of the 4 accepted formats ──
         if ext not in ALL_FORMATS:
-            await prog.edit_text(
-                "❌ Unsupported format: ." + ext + "\n"
-                "✅ Accepted: .txt  .csv  .vcf  .xlsx"
-            )
             await update.message.reply_text("↩️ Try again:", reply_markup=back_keyboard(fcb))
             return
 
@@ -1217,7 +1141,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["pending_source_ext"] = norm_ext
             context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📊 Input Analysis\n"
                 + THIN + "\n"
@@ -1233,7 +1156,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["pending_source_ext"] = norm_ext
             context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📊 Input Analysis\n"
                 + THIN + "\n"
@@ -1249,7 +1171,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["pending_source_ext"] = norm_ext
             context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📊 Input Analysis\n"
                 + THIN + "\n"
@@ -1265,7 +1186,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["pending_source_ext"] = norm_ext
             context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📊 Input Analysis\n"
                 + THIN + "\n"
@@ -1278,7 +1198,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["rename_file_bytes"] = raw
             context.user_data["rename_file_stem"]  = file_stem(fname)
             context.user_data["state"] = "rename_newname"
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📝 Got: " + fname + "\n\n"
                 "Now send the new filename with extension.\n"
@@ -1298,7 +1217,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["rename_ctc_bytes"] = vcf_text.encode("utf-8")
             context.user_data["rename_ctc_stem"]  = file_stem(fname)
             context.user_data["state"] = "rename_ctc_prefix"
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "✏️ Got: " + fname + "\n"
                 "📋 Contacts found: " + str(total_in) + "\n\n"
@@ -1314,7 +1232,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stems.append(file_stem(fname))
             this_count = count_contacts(content, norm_ext)
             running_total = sum(count_contacts(f, norm_ext) for f in files)
-            await prog.edit_text("✅ File " + str(len(files)) + " added!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📎 " + fname + " added ✓\n"
                 "📋 This file: " + str(this_count) + " contacts\n"
@@ -1333,7 +1250,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stems.append(file_stem(fname))
             this_count = count_contacts(content, norm_ext)
             running_total = sum(count_contacts(f, norm_ext) for f in files)
-            await prog.edit_text("✅ File " + str(len(files)) + " added!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📎 " + fname + " added ✓\n"
                 "📋 This file: " + str(this_count) + " records\n"
@@ -1351,7 +1267,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["split_file_stem"] = file_stem(fname)
             context.user_data["state"] = "split_count"
             total = count_contacts(content, norm_ext)
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "✂️ Got: " + fname + "\n\n"
                 "📊 Analysis Complete\n"
@@ -1377,7 +1292,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["pending_source_ext"]  = "vcf"
             context.user_data["pending_input_count"] = total_in
             context.user_data["state"]               = "ask_output_fmt"
-            await prog.edit_text("✅ Navy format applied!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📊 Input Analysis\n"
                 + THIN + "\n"
@@ -1389,10 +1303,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif state == "num_compiler":
             # Accept all 5 formats
             if ext not in COMPILER_FMTS:
-                await prog.edit_text(
-                    "❌ Unsupported format: ." + ext + "\n"
-                    "✅ Accepted: .txt .csv .vcf .xlsx .xls"
-                )
                 await update.message.reply_text("↩️ Try again:", reply_markup=back_keyboard(fcb))
                 return
 
@@ -1430,13 +1340,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             invalid = [n for n in numbers_raw if not is_valid_number(n)]
             if invalid:
                 sample = "\n".join(invalid[:5])
-                await prog.edit_text(
-                    "❌ Invalid data detected!\n"
-                    + THIN + "\n"
-                    "These entries are not valid numbers:\n\n"
-                    + sample +
-                    ("\n...and " + str(len(invalid) - 5) + " more" if len(invalid) > 5 else "")
-                )
                 await update.message.reply_text(
                     "Fix the file and send again.",
                     reply_markup=back_keyboard(fcb)
@@ -1451,7 +1354,6 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["compiler_stem"]    = file_stem(fname)
             context.user_data["state"]             = "compiler_ask_fmt"
 
-            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📱 Compiler Ready!\n"
                 + THIN + "\n"
@@ -1461,13 +1363,12 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         else:
-            await prog.edit_text("⚠️ No active feature selected. Please choose from the menu first.")
             await update.message.reply_text("👇 Select a feature:", reply_markup=main_menu_keyboard())
 
     except Exception as e:
         logger.error("File handler error: %s", e)
         try:
-            await prog.edit_text("❌ Error: " + str(e))
+            pass
         except Exception:
             pass
         await update.message.reply_text(
@@ -1475,14 +1376,12 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=back_keyboard(fcb)
         )
 
-
 # ─────────────────────────────────────────────────────────────
 # ERROR HANDLER
 # ─────────────────────────────────────────────────────────────
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error("Unhandled exception: %s", context.error, exc_info=context.error)
-
 
 # ─────────────────────────────────────────────────────────────
 # MAIN
@@ -1522,7 +1421,6 @@ def main():
 
     print("🤖 Bot is polling for updates...")
     app.run_polling(allowed_updates=["message", "callback_query"])
-
 
 if __name__ == "__main__":
     main()
