@@ -848,7 +848,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop("split_file_stem", None)
             context.user_data.pop("split_count", None)
             await query.message.reply_text(
-                "🎉 Done! Split into " + str(len(chunks)) + " files as ." + chosen_ext + FOOTER,
+                "🎉 Split Complete!\n"
+                + THIN + "\n"
+                "📦 Files created: " + str(len(chunks)) + "\n"
+                "✂️ Per file: " + str(count) + " contacts\n"
+                "📋 Format: ." + chosen_ext + FOOTER,
                 reply_markup=done_keyboard(fcb)
             )
             return
@@ -856,6 +860,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result     = context.user_data.get("pending_result", "")
         stem       = context.user_data.get("pending_stem", "output")
         source_ext = context.user_data.get("pending_source_ext", "vcf")
+        input_count = context.user_data.get("pending_input_count", 0)
 
         prog = await query.edit_message_text(
             "⏳ Converting to ." + chosen_ext + "  [▓▓▓▓▓░░░░░] 50%"
@@ -863,6 +868,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(0.5)
         file_bytes, _ = convert_content(result, source_ext, chosen_ext)
         oname = stem + "." + chosen_ext
+
+        # Count output records
+        if chosen_ext == "vcf":
+            out_count = file_bytes.decode("utf-8", errors="ignore").upper().count("BEGIN:VCARD")
+        elif chosen_ext == "txt":
+            out_count = len([l for l in file_bytes.decode("utf-8", errors="ignore").splitlines() if l.strip()])
+        elif chosen_ext in ("csv", "xlsx"):
+            out_count = input_count  # same rows, different format
+        else:
+            out_count = input_count
+
         buf   = io.BytesIO(file_bytes)
         buf.name = oname
         await prog.edit_text("✅ Conversion complete!  [▓▓▓▓▓▓▓▓▓▓] 100%")
@@ -873,7 +889,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "✅ File Ready!\n"
                 + THIN + "\n"
                 "📄 " + oname + "\n"
-                "📦 Format: ." + chosen_ext
+                "📦 Format: ." + chosen_ext + "\n"
+                "📥 Input records: " + str(input_count) + "\n"
+                "📤 Output records: " + str(out_count)
                 + FOOTER
             )
         )
@@ -881,6 +899,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("pending_result", None)
         context.user_data.pop("pending_stem", None)
         context.user_data.pop("pending_source_ext", None)
+        context.user_data.pop("pending_input_count", None)
         context.user_data.pop("fmt_options", None)
         await query.message.reply_text(
             "🎉 All done! What's next?",
@@ -1192,45 +1211,65 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ── Route by active state ─────────────────────────────
 
         if state == "txt_to_vcf":
+            total_in = count_contacts(content, norm_ext)
             context.user_data["pending_result"]     = content
             context.user_data["pending_stem"]       = file_stem(fname)
             context.user_data["pending_source_ext"] = norm_ext
+            context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
             await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
+                "📊 Input Analysis\n"
+                + THIN + "\n"
+                "📋 Records found: " + str(total_in) + "\n\n"
                 "📤 Choose output format:" + FOOTER,
                 reply_markup=output_fmt_keyboard(fcb)
             )
 
         elif state == "txtvcf_to_csv":
+            total_in = count_contacts(content, norm_ext)
             context.user_data["pending_result"]     = content
             context.user_data["pending_stem"]       = file_stem(fname)
             context.user_data["pending_source_ext"] = norm_ext
+            context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
             await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
+                "📊 Input Analysis\n"
+                + THIN + "\n"
+                "📋 Records found: " + str(total_in) + "\n\n"
                 "📤 Choose output format:" + FOOTER,
                 reply_markup=output_fmt_keyboard(fcb)
             )
 
         elif state == "csv_to_vcf":
+            total_in = count_contacts(content, norm_ext)
             context.user_data["pending_result"]     = content
             context.user_data["pending_stem"]       = file_stem(fname)
             context.user_data["pending_source_ext"] = norm_ext
+            context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
             await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
+                "📊 Input Analysis\n"
+                + THIN + "\n"
+                "📋 Records found: " + str(total_in) + "\n\n"
                 "📤 Choose output format:" + FOOTER,
                 reply_markup=output_fmt_keyboard(fcb)
             )
 
         elif state == "vcf_to_txt":
+            total_in = count_contacts(content, norm_ext)
             context.user_data["pending_result"]     = content
             context.user_data["pending_stem"]       = file_stem(fname)
             context.user_data["pending_source_ext"] = norm_ext
+            context.user_data["pending_input_count"] = total_in
             context.user_data["state"]              = "ask_output_fmt"
             await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
+                "📊 Input Analysis\n"
+                + THIN + "\n"
+                "📋 Records found: " + str(total_in) + "\n\n"
                 "📤 Choose output format:" + FOOTER,
                 reply_markup=output_fmt_keyboard(fcb)
             )
@@ -1254,14 +1293,15 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif norm_ext in ("csv", "xlsx"):
                 vcf_text = csv_to_vcf(content)
             else:
-                # txt — treat each line as a phone number, build vcf
                 vcf_text = txt_to_vcf(content)
+            total_in = vcf_text.upper().count("BEGIN:VCARD")
             context.user_data["rename_ctc_bytes"] = vcf_text.encode("utf-8")
             context.user_data["rename_ctc_stem"]  = file_stem(fname)
             context.user_data["state"] = "rename_ctc_prefix"
             await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
-                "✏️ Got: " + fname + "\n\n"
+                "✏️ Got: " + fname + "\n"
+                "📋 Contacts found: " + str(total_in) + "\n\n"
                 "Now send the contact name prefix.\n"
                 "Example: GGOD → GGOD 1, GGOD 2..." + FOOTER,
                 reply_markup=back_keyboard(fcb)
@@ -1272,10 +1312,13 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stems = context.user_data.setdefault("merge_vcf_stems", [])
             files.append(content)
             stems.append(file_stem(fname))
+            this_count = count_contacts(content, norm_ext)
+            running_total = sum(count_contacts(f, norm_ext) for f in files)
             await prog.edit_text("✅ File " + str(len(files)) + " added!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📎 " + fname + " added ✓\n"
-                "📦 Total files: " + str(len(files)) + "\n\n"
+                "📋 This file: " + str(this_count) + " contacts\n"
+                "📦 Files: " + str(len(files)) + "  |  Total contacts: " + str(running_total) + "\n\n"
                 "Send more files or tap Done to merge." + FOOTER,
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ Done — Merge Now", callback_data="merge_vcf_done")],
@@ -1288,10 +1331,13 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stems = context.user_data.setdefault("merge_txt_stems", [])
             files.append(content)
             stems.append(file_stem(fname))
+            this_count = count_contacts(content, norm_ext)
+            running_total = sum(count_contacts(f, norm_ext) for f in files)
             await prog.edit_text("✅ File " + str(len(files)) + " added!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
                 "📎 " + fname + " added ✓\n"
-                "📦 Total files: " + str(len(files)) + "\n\n"
+                "📋 This file: " + str(this_count) + " records\n"
+                "📦 Files: " + str(len(files)) + "  |  Total records: " + str(running_total) + "\n\n"
                 "Send more files or tap Done to merge." + FOOTER,
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ Done — Merge Now", callback_data="merge_txt_done")],
@@ -1324,12 +1370,18 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 vcf_text = csv_to_vcf(content)
             else:
                 vcf_text = txt_to_vcf(content)
-            context.user_data["pending_result"]     = admin_navy_format(vcf_text)
-            context.user_data["pending_stem"]       = file_stem(fname)
-            context.user_data["pending_source_ext"] = "vcf"
-            context.user_data["state"]              = "ask_output_fmt"
+            total_in = vcf_text.upper().count("BEGIN:VCARD")
+            navy_result = admin_navy_format(vcf_text)
+            context.user_data["pending_result"]      = navy_result
+            context.user_data["pending_stem"]        = file_stem(fname)
+            context.user_data["pending_source_ext"]  = "vcf"
+            context.user_data["pending_input_count"] = total_in
+            context.user_data["state"]               = "ask_output_fmt"
             await prog.edit_text("✅ Navy format applied!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
+                "📊 Input Analysis\n"
+                + THIN + "\n"
+                "📋 Contacts processed: " + str(total_in) + "\n\n"
                 "📤 Choose output format:" + FOOTER,
                 reply_markup=output_fmt_keyboard(fcb)
             )
