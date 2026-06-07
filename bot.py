@@ -170,6 +170,25 @@ def done_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
+def compiler_fmt_keyboard(feature_cb: str = None) -> InlineKeyboardMarkup:
+    """Output format picker for Number Compiler — includes XLS option."""
+    rows = [
+        [
+            InlineKeyboardButton("📄 TXT",  callback_data="cmp_txt"),
+            InlineKeyboardButton("📇 VCF",  callback_data="cmp_vcf"),
+            InlineKeyboardButton("📊 CSV",  callback_data="cmp_csv"),
+        ],
+        [
+            InlineKeyboardButton("📗 XLSX", callback_data="cmp_xlsx"),
+            InlineKeyboardButton("📘 XLS",  callback_data="cmp_xls"),
+        ],
+    ]
+    if feature_cb:
+        rows.append([InlineKeyboardButton("◀️ Back", callback_data=feature_cb)])
+    rows.append([InlineKeyboardButton("🏠 Main Menu", callback_data="back_to_menu")])
+    return InlineKeyboardMarkup(rows)
+
+
 # ─────────────────────────────────────────────────────────────
 # MESSAGE TEMPLATES
 # ─────────────────────────────────────────────────────────────
@@ -462,26 +481,58 @@ def compile_numbers_to_xlsx(numbers: list) -> bytes:
     return buf.read()
 
 
+def compile_numbers_to_output(numbers: list, fmt: str) -> tuple:
+    """
+    Convert compiled numbers list to the requested output format.
+    Returns (bytes, filename_ext).
+    """
+    if fmt in ("xlsx", "xls"):
+        # Both use openpyxl (xls saved as xlsx, renamed)
+        data = compile_numbers_to_xlsx(numbers)
+        return data, fmt
+
+    elif fmt == "csv":
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["First Name", "Last Name", "Mobile Number",
+                    "Language Code", "Country", "Email", "Groups"])
+        for i, num in enumerate(numbers, 1):
+            w.writerow(["ND" + str(i).zfill(4), "", num, "cn", "", "", "indiana 2000"])
+        return out.getvalue().encode("utf-8"), "csv"
+
+    elif fmt == "vcf":
+        entries = []
+        for i, num in enumerate(numbers, 1):
+            entries.append(
+                "BEGIN:VCARD\nVERSION:3.0\n"
+                "FN:ND" + str(i).zfill(4) + "\n"
+                "TEL:" + num + "\nEND:VCARD"
+            )
+        return "\n".join(entries).encode("utf-8"), "vcf"
+
+    else:  # txt
+        return "\n".join(numbers).encode("utf-8"), "txt"
+
+
 # ─────────────────────────────────────────────────────────────
-# UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx)
+# UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx / .xls)
 # ─────────────────────────────────────────────────────────────
 
-ALL_FORMATS = ("txt", "csv", "vcf", "xlsx")
+ALL_FORMATS     = ("txt", "csv", "vcf", "xlsx", "xls")
+COMPILER_FMTS   = ("txt", "csv", "vcf", "xlsx", "xls")
 
 def read_file_content(raw: bytes, ext: str) -> tuple:
     """
     Read raw file bytes and return (text_content, normalised_ext).
-    XLSX is converted to CSV-style text so all downstream logic works.
-    Returns (content_str, ext) or raises ValueError on bad format.
+    XLSX/XLS is converted to CSV-style text so all downstream logic works.
     """
-    if ext == "xlsx":
+    if ext in ("xlsx", "xls"):
         wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
         ws = wb.active
         out = io.StringIO()
         writer = csv.writer(out)
         for row in ws.iter_rows(values_only=True):
             writer.writerow([str(c) if c is not None else "" for c in row])
-        # treat xlsx as csv for all conversion logic
         return out.getvalue(), "csv"
     else:
         return raw.decode("utf-8", errors="ignore"), ext
@@ -505,13 +556,12 @@ FEATURE_PROMPTS = {
     "admin_navy":    ("cmd_admin_navy",    "🛡️ Navy Format\n\nSend a .vcf / .csv / .xlsx file to apply admin navy numbering."),
     "num_compiler":  ("cmd_num_compiler",
                       "📱 Mobile Number Compiler\n\n"
-                      "Send a .txt file with mobile numbers — one per line.\n\n"
+                      "Send a file with mobile numbers:\n"
+                      ".txt / .csv / .vcf / .xlsx / .xls\n\n"
                       "Rules:\n"
                       "  • Only mobile numbers allowed\n"
-                      "  • One number per line\n"
-                      "  • No names, text, or extra columns\n\n"
-                      "Bot will auto-format and return an .xlsx file\n"
-                      "ready for WhatsApp / contact import."),
+                      "  • Numbers extracted automatically\n\n"
+                      "Bot will compile & ask your output format."),
 }
 
 
@@ -832,6 +882,53 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("pending_stem", None)
         context.user_data.pop("pending_source_ext", None)
         context.user_data.pop("fmt_options", None)
+        await query.message.reply_text(
+            "🎉 All done! What's next?",
+            reply_markup=done_keyboard(fcb)
+        )
+        return
+
+    # ── Number Compiler output format ────────────────────────
+    if data in ("cmp_txt", "cmp_vcf", "cmp_csv", "cmp_xlsx", "cmp_xls"):
+        chosen_ext = data.split("_", 1)[1]
+        fcb        = context.user_data.get("active_feature_cb")
+        numbers    = context.user_data.get("compiler_numbers", [])
+        stem       = context.user_data.get("compiler_stem", "compiled")
+        total      = len(numbers)
+
+        if not numbers:
+            await query.edit_message_text(
+                "❌ No data found. Please start again.",
+                reply_markup=back_keyboard(fcb)
+            )
+            return
+
+        prog = await query.edit_message_text(
+            "⏳ Compiling " + str(total) + " numbers as ." + chosen_ext + "  [▓▓▓▓▓░░░░░] 50%"
+        )
+        await asyncio.sleep(0.4)
+
+        file_bytes, out_ext = compile_numbers_to_output(numbers, chosen_ext)
+        oname = stem + "_compiled." + out_ext
+        buf   = io.BytesIO(file_bytes)
+        buf.name = oname
+
+        await prog.edit_text("✅ Compiled!  [▓▓▓▓▓▓▓▓▓▓] 100%")
+        await query.message.reply_document(
+            document=buf,
+            filename=oname,
+            caption=(
+                "✅ Mobile Number Compiler Done!\n"
+                + THIN + "\n"
+                "📋 Total Numbers: " + str(total) + "\n"
+                "📄 File: " + oname + "\n"
+                "📦 Format: ." + out_ext + " (WhatsApp ready)"
+                + FOOTER
+            )
+        )
+        context.user_data.pop("state", None)
+        context.user_data.pop("compiler_numbers", None)
+        context.user_data.pop("compiler_stem", None)
         await query.message.reply_text(
             "🎉 All done! What's next?",
             reply_markup=done_keyboard(fcb)
@@ -1238,26 +1335,53 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         elif state == "num_compiler":
-            # Only accept .txt files
-            if ext != "txt":
+            # Accept all 5 formats
+            if ext not in COMPILER_FMTS:
                 await prog.edit_text(
-                    "❌ Only .txt files accepted!\n"
-                    "Send a plain text file with one number per line."
+                    "❌ Unsupported format: ." + ext + "\n"
+                    "✅ Accepted: .txt .csv .vcf .xlsx .xls"
                 )
                 await update.message.reply_text("↩️ Try again:", reply_markup=back_keyboard(fcb))
                 return
 
-            lines = [l.strip() for l in content.splitlines() if l.strip()]
+            # Extract numbers from any format
+            if norm_ext == "vcf":
+                numbers_raw = [l.split(":")[-1].strip()
+                               for l in content.splitlines()
+                               if l.strip().upper().startswith("TEL")]
+            elif norm_ext == "csv":
+                rows = list(csv.reader(io.StringIO(content)))
+                numbers_raw = []
+                if rows:
+                    # Try to find phone column
+                    header = [h.strip().lower() for h in rows[0]]
+                    phone_idx = None
+                    for candidate in ("mobile number", "phone", "tel", "number", "mobile"):
+                        if candidate in header:
+                            phone_idx = header.index(candidate)
+                            break
+                    for row in rows[1:]:
+                        if phone_idx is not None and phone_idx < len(row):
+                            val = row[phone_idx].strip()
+                        elif row:
+                            # fallback: take first non-empty cell
+                            val = next((c.strip() for c in row if c.strip()), "")
+                        else:
+                            val = ""
+                        if val:
+                            numbers_raw.append(val)
+            else:
+                # txt
+                numbers_raw = [l.strip() for l in content.splitlines() if l.strip()]
 
-            # Validate — reject if any line is not a phone number
-            invalid = [l for l in lines if not is_valid_number(l)]
+            # Validate
+            invalid = [n for n in numbers_raw if not is_valid_number(n)]
             if invalid:
                 sample = "\n".join(invalid[:5])
                 await prog.edit_text(
                     "❌ Invalid data detected!\n"
                     + THIN + "\n"
-                    "Only mobile numbers are allowed.\n"
-                    "These lines were rejected:\n\n"
+                    "These entries are not valid numbers:\n\n"
                     + sample +
                     ("\n...and " + str(len(invalid) - 5) + " more" if len(invalid) > 5 else "")
                 )
@@ -1267,37 +1391,21 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
 
-            # Normalize numbers
-            numbers = [normalize_number(l) for l in lines]
+            numbers = [normalize_number(n) for n in numbers_raw]
             total   = len(numbers)
 
-            await prog.edit_text(
-                "⏳ Compiling " + str(total) + " numbers  [▓▓▓▓▓▓▓░░░] 70%"
-            )
-            await asyncio.sleep(0.3)
+            # Store and ask output format
+            context.user_data["compiler_numbers"] = numbers
+            context.user_data["compiler_stem"]    = file_stem(fname)
+            context.user_data["state"]             = "compiler_ask_fmt"
 
-            xlsx_bytes = compile_numbers_to_xlsx(numbers)
-            oname      = file_stem(fname) + "_compiled.xlsx"
-            buf        = io.BytesIO(xlsx_bytes)
-            buf.name   = oname
-
-            await prog.edit_text("✅ Compiled!  [▓▓▓▓▓▓▓▓▓▓] 100%")
-            await update.message.reply_document(
-                document=buf,
-                filename=oname,
-                caption=(
-                    "✅ Mobile Number Compiler Done!\n"
-                    + THIN + "\n"
-                    "📋 Total Numbers: " + str(total) + "\n"
-                    "📄 File: " + oname + "\n"
-                    "📦 Format: .xlsx (WhatsApp ready)"
-                    + FOOTER
-                )
-            )
-            context.user_data.pop("state", None)
+            await prog.edit_text("✅ File received!  [▓▓▓▓▓▓▓▓▓▓] 100%")
             await update.message.reply_text(
-                "🎉 Done! What's next?",
-                reply_markup=done_keyboard(fcb)
+                "📱 Compiler Ready!\n"
+                + THIN + "\n"
+                "📋 Total Numbers: " + str(total) + "\n\n"
+                "📤 Choose output format:" + FOOTER,
+                reply_markup=compiler_fmt_keyboard(fcb)
             )
 
         else:
