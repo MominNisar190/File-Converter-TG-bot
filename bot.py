@@ -407,30 +407,52 @@ def normalize_number(s: str) -> str:
     # Remove dashes, dots, parens, spaces but keep +
     return _re.sub(r'[\s\-\(\)\.]', '', s)
 
-def compile_numbers_to_xlsx(numbers: list) -> bytes:
+def split_country_phone(num: str) -> tuple:
     """
-    Build the WhatsApp-import-ready XLSX from a list of phone number strings.
-    Columns: First Name | Last Name | Mobile Number | Language Code | Country | Email | Groups
-    First Name = ND0001, ND0002 ...
-    Language Code = cn
+    Split a number string into (country_code, phone).
+    Rules:
+      - Strip any leading '+' for splitting
+      - First 2 digits = country code
+      - Remaining digits = phone (up to 10 digits used)
+    Returns (country_code_str, phone_str) both as plain digit strings.
+    """
+    digits = _re.sub(r'\D', '', num)  # strip all non-digits
+    if len(digits) >= 12:
+        cc    = digits[:2]
+        phone = digits[2:12]   # 10 digits
+    elif len(digits) > 2:
+        cc    = digits[:2]
+        phone = digits[2:]
+    else:
+        cc    = digits
+        phone = ""
+    return cc, phone
+
+def compile_numbers_to_xlsx(numbers: list, tag: str = "") -> bytes:
+    """
+    Build the compiled XLSX from a list of phone number strings.
+    Columns: Name | Phone | Country Code | Email | Tags
+    Name = ND0001, ND0002 ...
+    Phone = last 10 digits after stripping 2-digit country code
+    Country Code = first 2 digits
+    Email = empty
+    Tags = user-supplied tag (same for all rows)
     """
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Contacts"
 
-    headers = ["First Name", "Last Name", "Mobile Number",
-               "Language Code", "Country", "Email", "Groups"]
+    headers = ["Name", "Phone", "Country Code", "Email", "Tags"]
     ws.append(headers)
 
     for i, num in enumerate(numbers, 1):
+        cc, phone = split_country_phone(num)
         ws.append([
-            "ND" + str(i).zfill(4),   # First Name
-            "",                         # Last Name
-            num,                        # Mobile Number
-            "cn",                       # Language Code
-            "",                         # Country
+            "ND" + str(i).zfill(4),   # Name
+            phone,                      # Phone (10 digits, no country code)
+            cc,                         # Country Code (2 digits)
             "",                         # Email
-            "indiana 2000",             # Groups
+            tag,                        # Tags
         ])
 
     buf = io.BytesIO()
@@ -438,37 +460,43 @@ def compile_numbers_to_xlsx(numbers: list) -> bytes:
     buf.seek(0)
     return buf.read()
 
-def compile_numbers_to_output(numbers: list, fmt: str) -> tuple:
+def compile_numbers_to_output(numbers: list, fmt: str, tag: str = "") -> tuple:
     """
     Convert compiled numbers list to the requested output format.
+    Columns: Name | Phone | Country Code | Email | Tags
     Returns (bytes, filename_ext).
     """
     if fmt in ("xlsx", "xls"):
-        # Both use openpyxl (xls saved as xlsx, renamed)
-        data = compile_numbers_to_xlsx(numbers)
+        data = compile_numbers_to_xlsx(numbers, tag)
         return data, fmt
 
     elif fmt == "csv":
         out = io.StringIO()
         w = csv.writer(out)
-        w.writerow(["First Name", "Last Name", "Mobile Number",
-                    "Language Code", "Country", "Email", "Groups"])
+        w.writerow(["Name", "Phone", "Country Code", "Email", "Tags"])
         for i, num in enumerate(numbers, 1):
-            w.writerow(["ND" + str(i).zfill(4), "", num, "cn", "", "", "indiana 2000"])
+            cc, phone = split_country_phone(num)
+            w.writerow(["ND" + str(i).zfill(4), phone, cc, "", tag])
         return out.getvalue().encode("utf-8"), "csv"
 
     elif fmt == "vcf":
         entries = []
         for i, num in enumerate(numbers, 1):
+            cc, phone = split_country_phone(num)
             entries.append(
                 "BEGIN:VCARD\nVERSION:3.0\n"
                 "FN:ND" + str(i).zfill(4) + "\n"
-                "TEL:" + num + "\nEND:VCARD"
+                "TEL:+" + cc + phone + "\n"
+                "CATEGORIES:" + tag + "\nEND:VCARD"
             )
         return "\n".join(entries).encode("utf-8"), "vcf"
 
     else:  # txt
-        return "\n".join(numbers).encode("utf-8"), "txt"
+        lines = []
+        for i, num in enumerate(numbers, 1):
+            cc, phone = split_country_phone(num)
+            lines.append("ND" + str(i).zfill(4) + "\t" + phone + "\t" + cc + "\t\t" + tag)
+        return "\n".join(lines).encode("utf-8"), "txt"
 
 # ─────────────────────────────────────────────────────────────
 # UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx / .xls)
@@ -847,12 +875,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ── Number Compiler output format ────────────────────────
     if data in ("cmp_txt", "cmp_vcf", "cmp_csv", "cmp_xlsx", "cmp_xls"):
         chosen_ext = data.split("_", 1)[1]
         fcb        = context.user_data.get("active_feature_cb")
         numbers    = context.user_data.get("compiler_numbers", [])
         stem       = context.user_data.get("compiler_stem", "compiled")
+        tag        = context.user_data.get("compiler_tag", "")
         total      = len(numbers)
 
         if not numbers:
@@ -864,7 +892,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         prog = None
 
-        file_bytes, out_ext = compile_numbers_to_output(numbers, chosen_ext)
+        file_bytes, out_ext = compile_numbers_to_output(numbers, chosen_ext, tag)
         oname = stem + "_compiled." + out_ext
         buf   = io.BytesIO(file_bytes)
         buf.name = oname
@@ -873,17 +901,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             document=buf,
             filename=oname,
             caption=(
-                "✅ Mobile Number Compiler Done!\n"
+                "✅ Number Compiler Done!\n"
                 + THIN + "\n"
                 "📋 Total Numbers: " + str(total) + "\n"
+                "🏷️ Tag: " + (tag if tag else "—") + "\n"
+                "📊 Columns: Name | Phone | Country Code | Email | Tags\n"
                 "📄 File: " + oname + "\n"
-                "📦 Format: ." + out_ext + " (WhatsApp ready)"
+                "📦 Format: ." + out_ext
                 + FOOTER
             )
         )
         context.user_data.pop("state", None)
         context.user_data.pop("compiler_numbers", None)
         context.user_data.pop("compiler_stem", None)
+        context.user_data.pop("compiler_tag", None)
         await query.message.reply_text(
             "🎉 All done! What's next?",
             reply_markup=done_keyboard(fcb)
@@ -1082,6 +1113,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📦 Files to create: " + str(files_count) + "\n\n"
             "📤 Choose output format:" + FOOTER,
             reply_markup=output_fmt_keyboard(fcb)
+        )
+        return
+
+    if state == "compiler_ask_tag":
+        tag     = text.strip()
+        numbers = context.user_data.get("compiler_numbers", [])
+        fcb     = context.user_data.get("active_feature_cb")
+        if not numbers:
+            await update.message.reply_text("❌ No data found. Please start again.", reply_markup=back_keyboard(fcb))
+            return
+        context.user_data["compiler_tag"] = tag
+        context.user_data["state"]        = "compiler_ask_fmt"
+        total = len(numbers)
+        await update.message.reply_text(
+            "✅ Tag set: " + tag + "\n"
+            + THIN + "\n"
+            "📋 Total Numbers: " + str(total) + "\n\n"
+            "📤 Choose output format:" + FOOTER,
+            reply_markup=compiler_fmt_keyboard(fcb)
         )
         return
 
@@ -1349,17 +1399,19 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             numbers = [normalize_number(n) for n in numbers_raw]
             total   = len(numbers)
 
-            # Store and ask output format
+            # Store numbers and ask for tag first
             context.user_data["compiler_numbers"] = numbers
             context.user_data["compiler_stem"]    = file_stem(fname)
-            context.user_data["state"]             = "compiler_ask_fmt"
+            context.user_data["state"]             = "compiler_ask_tag"
 
             await update.message.reply_text(
-                "📱 Compiler Ready!\n"
+                "📱 Numbers Loaded!\n"
                 + THIN + "\n"
                 "📋 Total Numbers: " + str(total) + "\n\n"
-                "📤 Choose output format:" + FOOTER,
-                reply_markup=compiler_fmt_keyboard(fcb)
+                "🏷️ Enter a Tag for all contacts:\n"
+                "(This tag will be applied to every row)\n"
+                "Example: VIP, Client, India2025" + FOOTER,
+                reply_markup=back_keyboard(fcb)
             )
 
         else:
