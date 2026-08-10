@@ -411,18 +411,19 @@ def split_country_phone(num: str) -> tuple:
     """
     Split a number string into (country_code, phone).
     Rules:
-      - Strip any leading '+' for splitting
+      - Strip all non-digit characters first
       - First 2 digits = country code
-      - Remaining digits = phone (up to 10 digits used)
+      - Remaining ALL digits = phone number (10, 11, or 12 digits — no cap)
+        e.g. China has 11-digit local numbers
     Returns (country_code_str, phone_str) both as plain digit strings.
     """
     digits = _re.sub(r'\D', '', num)  # strip all non-digits
-    if len(digits) >= 12:
+    if len(digits) > 2:
         cc    = digits[:2]
-        phone = digits[2:12]   # 10 digits
-    elif len(digits) > 2:
-        cc    = digits[:2]
-        phone = digits[2:]
+        phone = digits[2:]   # everything after 2-digit country code
+    elif len(digits) == 2:
+        cc    = digits
+        phone = ""
     else:
         cc    = digits
         phone = ""
