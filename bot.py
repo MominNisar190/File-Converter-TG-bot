@@ -109,7 +109,8 @@ def shortcut_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton("📁 TXT→VCF"),  KeyboardButton("📄 VCF→TXT"),  KeyboardButton("📇 CSV→VCF")],
             [KeyboardButton("📊 →CSV"),     KeyboardButton("📝 Rename"),    KeyboardButton("✏️ Ren.CTC")],
             [KeyboardButton("🧩 MergeVCF"), KeyboardButton("📚 MergeTXT"), KeyboardButton("✂️ Split")],
-            [KeyboardButton("🛡️ Navy"),     KeyboardButton("ℹ️ Help"),      KeyboardButton("🔄 Reset")],
+            [KeyboardButton("🛡️ Navy"),     KeyboardButton("📱 Compiler"),  KeyboardButton("ℹ️ Help")],
+            [KeyboardButton("🔄 Reset")],
         ],
         resize_keyboard=True,
         input_field_placeholder="Choose a feature or type a command..."
@@ -1053,18 +1054,19 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Shortcut keyboard button mapping
     shortcut_map = {
-        "📁 TXT→VCF":  "txt_to_vcf",
-        "📄 VCF→TXT":  "vcf_to_txt",
-        "📇 CSV→VCF":  "csv_to_vcf",
-        "📊 →CSV":     "txtvcf_to_csv",
-        "📝 Rename":   "rename_file",
-        "✏️ Ren.CTC":  "rename_ctc",
-        "🧩 MergeVCF": "merge_vcf",
-        "📚 MergeTXT": "merge_txt",
-        "✂️ Split":    "split_file",
-        "🛡️ Navy":     "admin_navy",
-        "ℹ️ Help":     "__help__",
-        "🔄 Reset":    "__reset__",
+        "📁 TXT→VCF":   "txt_to_vcf",
+        "📄 VCF→TXT":   "vcf_to_txt",
+        "📇 CSV→VCF":   "csv_to_vcf",
+        "📊 →CSV":      "txtvcf_to_csv",
+        "📝 Rename":    "rename_file",
+        "✏️ Ren.CTC":   "rename_ctc",
+        "🧩 MergeVCF":  "merge_vcf",
+        "📚 MergeTXT":  "merge_txt",
+        "✂️ Split":     "split_file",
+        "🛡️ Navy":      "admin_navy",
+        "📱 Compiler":  "num_compiler",
+        "ℹ️ Help":      "__help__",
+        "🔄 Reset":     "__reset__",
     }
 
     if text in shortcut_map:
