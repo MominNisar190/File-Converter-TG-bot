@@ -392,68 +392,169 @@ def count_contacts(content: str, norm_ext: str) -> int:
 
 import re as _re
 
+# ── Country code lookup table ─────────────────────────────────
+# Maps dialing prefix (string of digits) -> (country_name, language_code)
+# Ordered longest-first so +1868 matches before +1
+_CC_TABLE = {
+    # 3-digit codes
+    "355": ("Albania", "sq"),       "213": ("Algeria", "ar"),
+    "376": ("Andorra", "ca"),       "244": ("Angola", "pt"),
+    "374": ("Armenia", "hy"),       "994": ("Azerbaijan", "az"),
+    "973": ("Bahrain", "ar"),       "880": ("Bangladesh", "bn"),
+    "375": ("Belarus", "be"),       "501": ("Belize", "en"),
+    "229": ("Benin", "fr"),         "975": ("Bhutan", "dz"),
+    "591": ("Bolivia", "es"),       "387": ("Bosnia", "bs"),
+    "267": ("Botswana", "en"),      "673": ("Brunei", "ms"),
+    "359": ("Bulgaria", "bg"),      "226": ("Burkina Faso", "fr"),
+    "257": ("Burundi", "fr"),       "855": ("Cambodia", "km"),
+    "237": ("Cameroon", "fr"),      "238": ("Cape Verde", "pt"),
+    "236": ("Central African Republic", "fr"),
+    "235": ("Chad", "fr"),          "593": ("Ecuador", "es"),
+    "503": ("El Salvador", "es"),   "240": ("Equatorial Guinea", "es"),
+    "291": ("Eritrea", "ti"),       "372": ("Estonia", "et"),
+    "251": ("Ethiopia", "am"),      "679": ("Fiji", "en"),
+    "358": ("Finland", "fi"),       "241": ("Gabon", "fr"),
+    "220": ("Gambia", "en"),        "995": ("Georgia", "ka"),
+    "233": ("Ghana", "en"),         "350": ("Gibraltar", "en"),
+    "299": ("Greenland", "kl"),     "502": ("Guatemala", "es"),
+    "224": ("Guinea", "fr"),        "245": ("Guinea-Bissau", "pt"),
+    "592": ("Guyana", "en"),        "509": ("Haiti", "fr"),
+    "504": ("Honduras", "es"),      "852": ("Hong Kong", "zh"),
+    "354": ("Iceland", "is"),       "353": ("Ireland", "en"),
+    "972": ("Israel", "he"),        "225": ("Ivory Coast", "fr"),
+    "876": ("Jamaica", "en"),       "962": ("Jordan", "ar"),
+    "254": ("Kenya", "sw"),         "686": ("Kiribati", "en"),
+    "383": ("Kosovo", "sq"),        "965": ("Kuwait", "ar"),
+    "996": ("Kyrgyzstan", "ky"),    "856": ("Laos", "lo"),
+    "371": ("Latvia", "lv"),        "961": ("Lebanon", "ar"),
+    "266": ("Lesotho", "st"),       "231": ("Liberia", "en"),
+    "218": ("Libya", "ar"),         "423": ("Liechtenstein", "de"),
+    "370": ("Lithuania", "lt"),     "352": ("Luxembourg", "lb"),
+    "853": ("Macau", "zh"),         "389": ("North Macedonia", "mk"),
+    "261": ("Madagascar", "mg"),    "265": ("Malawi", "en"),
+    "960": ("Maldives", "dv"),      "223": ("Mali", "fr"),
+    "356": ("Malta", "mt"),         "692": ("Marshall Islands", "en"),
+    "222": ("Mauritania", "ar"),    "230": ("Mauritius", "en"),
+    "373": ("Moldova", "ro"),       "976": ("Mongolia", "mn"),
+    "382": ("Montenegro", "sr"),    "212": ("Morocco", "ar"),
+    "258": ("Mozambique", "pt"),    "264": ("Namibia", "en"),
+    "674": ("Nauru", "na"),         "977": ("Nepal", "ne"),
+    "505": ("Nicaragua", "es"),     "227": ("Niger", "fr"),
+    "234": ("Nigeria", "en"),       "850": ("North Korea", "ko"),
+    "968": ("Oman", "ar"),          "680": ("Palau", "en"),
+    "507": ("Panama", "es"),        "675": ("Papua New Guinea", "en"),
+    "595": ("Paraguay", "es"),      "970": ("Palestine", "ar"),
+    "351": ("Portugal", "pt"),      "974": ("Qatar", "ar"),
+    "242": ("Congo", "fr"),         "243": ("DR Congo", "fr"),
+    "250": ("Rwanda", "rw"),        "685": ("Samoa", "sm"),
+    "378": ("San Marino", "it"),    "239": ("Sao Tome", "pt"),
+    "966": ("Saudi Arabia", "ar"),  "221": ("Senegal", "fr"),
+    "381": ("Serbia", "sr"),        "232": ("Sierra Leone", "en"),
+    "386": ("Slovenia", "sl"),      "677": ("Solomon Islands", "en"),
+    "252": ("Somalia", "so"),       "211": ("South Sudan", "en"),
+    "249": ("Sudan", "ar"),         "597": ("Suriname", "nl"),
+    "268": ("Eswatini", "ss"),      "46": ("Sweden", "sv"),
+    "963": ("Syria", "ar"),         "992": ("Tajikistan", "tg"),
+    "255": ("Tanzania", "sw"),      "228": ("Togo", "fr"),
+    "676": ("Tonga", "to"),         "868": ("Trinidad and Tobago", "en"),
+    "216": ("Tunisia", "ar"),       "993": ("Turkmenistan", "tk"),
+    "688": ("Tuvalu", "en"),        "256": ("Uganda", "en"),
+    "380": ("Ukraine", "uk"),       "971": ("UAE", "ar"),
+    "598": ("Uruguay", "es"),       "998": ("Uzbekistan", "uz"),
+    "678": ("Vanuatu", "bi"),       "379": ("Vatican", "it"),
+    "967": ("Yemen", "ar"),         "260": ("Zambia", "en"),
+    "263": ("Zimbabwe", "en"),
+    # 2-digit codes
+    "86": ("China", "zh"),          "91": ("India", "hi"),
+    "92": ("Pakistan", "ur"),       "44": ("UK", "en"),
+    "49": ("Germany", "de"),        "33": ("France", "fr"),
+    "39": ("Italy", "it"),          "34": ("Spain", "es"),
+    "81": ("Japan", "ja"),          "82": ("South Korea", "ko"),
+    "55": ("Brazil", "pt"),         "52": ("Mexico", "es"),
+    "61": ("Australia", "en"),      "64": ("New Zealand", "en"),
+    "27": ("South Africa", "en"),   "20": ("Egypt", "ar"),
+    "62": ("Indonesia", "id"),      "63": ("Philippines", "tl"),
+    "84": ("Vietnam", "vi"),        "66": ("Thailand", "th"),
+    "90": ("Turkey", "tr"),         "98": ("Iran", "fa"),
+    "48": ("Poland", "pl"),         "31": ("Netherlands", "nl"),
+    "32": ("Belgium", "nl"),        "41": ("Switzerland", "de"),
+    "43": ("Austria", "de"),        "47": ("Norway", "no"),
+    "45": ("Denmark", "da"),        "30": ("Greece", "el"),
+    "36": ("Hungary", "hu"),        "38": ("Ukraine", "uk"),
+    "40": ("Romania", "ro"),        "7":  ("Russia", "ru"),
+    "60": ("Malaysia", "ms"),       "65": ("Singapore", "en"),
+    "95": ("Myanmar", "my"),        "94": ("Sri Lanka", "si"),
+    "93": ("Afghanistan", "ps"),    "96": ("Libya", "ar"),
+    "97": ("Jordan", "ar"),         "54": ("Argentina", "es"),
+    "56": ("Chile", "es"),          "57": ("Colombia", "es"),
+    "51": ("Peru", "es"),           "58": ("Venezuela", "es"),
+    "53": ("Cuba", "es"),           "1":  ("USA", "en"),
+}
+
+def detect_country(num: str) -> tuple:
+    """
+    Detect country from a phone number.
+    Returns (country_code_digits, local_number, country_name, lang_code).
+    e.g. "+923001234567" -> ("92", "3001234567", "Pakistan", "ur")
+    """
+    digits = _re.sub(r'\D', '', num)
+    # Remove leading zeros
+    digits = digits.lstrip('0') or digits
+
+    # Try longest match first (3 digits, then 2, then 1)
+    for prefix_len in (3, 2, 1):
+        prefix = digits[:prefix_len]
+        if prefix in _CC_TABLE:
+            country_name, lang_code = _CC_TABLE[prefix]
+            local_number = digits[prefix_len:]
+            return prefix, local_number, country_name, lang_code
+
+    # Fallback: first 2 digits as country code, unknown country
+    cc = digits[:2] if len(digits) >= 2 else digits
+    return cc, digits[2:], "Unknown", "en"
+
+
 def is_valid_number(s: str) -> bool:
     """Accept only strings that look like phone numbers (digits, +, -, spaces, parens)."""
     s = s.strip()
     if not s:
         return False
-    # Strip allowed phone chars and see if anything non-numeric remains
     cleaned = _re.sub(r'[\s\+\-\(\)\.]', '', s)
     return cleaned.isdigit() and len(cleaned) >= 6
+
 
 def normalize_number(s: str) -> str:
     """Remove spaces and formatting but keep leading + for country code."""
     s = s.strip()
-    # Remove dashes, dots, parens, spaces but keep +
     return _re.sub(r'[\s\-\(\)\.]', '', s)
-
-def split_country_phone(num: str) -> tuple:
-    """
-    Split a number string into (country_code, phone).
-    Rules:
-      - Strip all non-digit characters first
-      - First 2 digits = country code
-      - Remaining ALL digits = phone number (10, 11, or 12 digits — no cap)
-        e.g. China has 11-digit local numbers
-    Returns (country_code_str, phone_str) both as plain digit strings.
-    """
-    digits = _re.sub(r'\D', '', num)  # strip all non-digits
-    if len(digits) > 2:
-        cc    = digits[:2]
-        phone = digits[2:]   # everything after 2-digit country code
-    elif len(digits) == 2:
-        cc    = digits
-        phone = ""
-    else:
-        cc    = digits
-        phone = ""
-    return cc, phone
 
 def compile_numbers_to_xlsx(numbers: list, tag: str = "") -> bytes:
     """
-    Build the compiled XLSX from a list of phone number strings.
-    Columns: Name | Phone | Country Code | Email | Tags
-    Name = ND0001, ND0002 ...
-    Phone = last 10 digits after stripping 2-digit country code
-    Country Code = first 2 digits
-    Email = empty
-    Tags = user-supplied tag (same for all rows)
+    Build the WhatsApp-import-ready XLSX.
+    Columns: First Name | Last Name | Mobile Number | Language Code | Country | Email | Groups
+    - Mobile Number = local number (country code stripped)
+    - Language Code = auto-detected from country
+    - Country = auto-detected country name
+    - Groups = indiana 2000
     """
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Contacts"
 
-    headers = ["Name", "Phone", "Country Code", "Email", "Tags"]
+    headers = ["First Name", "Last Name", "Mobile Number",
+               "Language Code", "Country", "Email", "Groups"]
     ws.append(headers)
 
     for i, num in enumerate(numbers, 1):
-        cc, phone = split_country_phone(num)
+        cc, local, country_name, lang_code = detect_country(num)
         ws.append([
-            "ND" + str(i).zfill(4),   # Name
-            phone,                      # Phone (10 digits, no country code)
-            cc,                         # Country Code (2 digits)
+            "ND" + str(i).zfill(4),   # First Name
+            "",                         # Last Name
+            local,                      # Mobile Number (local, no country code)
+            lang_code,                  # Language Code (auto-detected)
+            country_name,               # Country (auto-detected)
             "",                         # Email
-            tag,                        # Tags
+            "indiana 2000",             # Groups
         ])
 
     buf = io.BytesIO()
@@ -461,10 +562,11 @@ def compile_numbers_to_xlsx(numbers: list, tag: str = "") -> bytes:
     buf.seek(0)
     return buf.read()
 
+
 def compile_numbers_to_output(numbers: list, fmt: str, tag: str = "") -> tuple:
     """
     Convert compiled numbers list to the requested output format.
-    Columns: Name | Phone | Country Code | Email | Tags
+    Columns: First Name | Last Name | Mobile Number | Language Code | Country | Email | Groups
     Returns (bytes, filename_ext).
     """
     if fmt in ("xlsx", "xls"):
@@ -474,30 +576,28 @@ def compile_numbers_to_output(numbers: list, fmt: str, tag: str = "") -> tuple:
     elif fmt == "csv":
         out = io.StringIO()
         w = csv.writer(out)
-        w.writerow(["Name", "Phone", "Country Code", "Email", "Tags"])
+        w.writerow(["First Name", "Last Name", "Mobile Number",
+                    "Language Code", "Country", "Email", "Groups"])
         for i, num in enumerate(numbers, 1):
-            cc, phone = split_country_phone(num)
-            w.writerow(["ND" + str(i).zfill(4), phone, cc, "", tag])
+            cc, local, country_name, lang_code = detect_country(num)
+            w.writerow(["ND" + str(i).zfill(4), "", local,
+                        lang_code, country_name, "", "indiana 2000"])
         return out.getvalue().encode("utf-8"), "csv"
 
     elif fmt == "vcf":
         entries = []
         for i, num in enumerate(numbers, 1):
-            cc, phone = split_country_phone(num)
+            cc, local, country_name, lang_code = detect_country(num)
             entries.append(
                 "BEGIN:VCARD\nVERSION:3.0\n"
                 "FN:ND" + str(i).zfill(4) + "\n"
-                "TEL:+" + cc + phone + "\n"
-                "CATEGORIES:" + tag + "\nEND:VCARD"
+                "TEL:+" + cc + local + "\n"
+                "CATEGORIES:indiana 2000\nEND:VCARD"
             )
         return "\n".join(entries).encode("utf-8"), "vcf"
 
     else:  # txt
-        lines = []
-        for i, num in enumerate(numbers, 1):
-            cc, phone = split_country_phone(num)
-            lines.append("ND" + str(i).zfill(4) + "\t" + phone + "\t" + cc + "\t\t" + tag)
-        return "\n".join(lines).encode("utf-8"), "txt"
+        return "\n".join(numbers).encode("utf-8"), "txt"
 
 # ─────────────────────────────────────────────────────────────
 # UNIVERSAL FILE READER  (.txt / .csv / .vcf / .xlsx / .xls)
