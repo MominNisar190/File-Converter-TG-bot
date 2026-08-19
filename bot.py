@@ -530,31 +530,23 @@ def normalize_number(s: str) -> str:
 
 def compile_numbers_to_xlsx(numbers: list, tag: str = "") -> bytes:
     """
-    Build the WhatsApp-import-ready XLSX.
-    Columns: First Name | Last Name | Mobile Number | Language Code | Country | Email | Groups
-    - Mobile Number = local number (country code stripped)
-    - Language Code = auto-detected from country
-    - Country = auto-detected country name
-    - Groups = indiana 2000
+    Build the compiled XLSX.
+    Columns: Name | Phone | Country Code | Email | Tags
     """
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Contacts"
 
-    headers = ["First Name", "Last Name", "Mobile Number",
-               "Language Code", "Country", "Email", "Groups"]
-    ws.append(headers)
+    ws.append(["Name", "Phone", "Country Code", "Email", "Tags"])
 
     for i, num in enumerate(numbers, 1):
         cc, local, country_name, lang_code = detect_country(num)
         ws.append([
-            "ND" + str(i).zfill(4),   # First Name
-            "",                         # Last Name
-            local,                      # Mobile Number (local, no country code)
-            lang_code,                  # Language Code (auto-detected)
-            country_name,               # Country (auto-detected)
+            "ND" + str(i).zfill(4),   # Name
+            local,                      # Phone (local, no country code)
+            cc,                         # Country Code
             "",                         # Email
-            "indiana 2000",             # Groups
+            country_name,               # Tags = detected country name
         ])
 
     buf = io.BytesIO()
@@ -566,7 +558,7 @@ def compile_numbers_to_xlsx(numbers: list, tag: str = "") -> bytes:
 def compile_numbers_to_output(numbers: list, fmt: str, tag: str = "") -> tuple:
     """
     Convert compiled numbers list to the requested output format.
-    Columns: First Name | Last Name | Mobile Number | Language Code | Country | Email | Groups
+    Columns: Name | Phone | Country Code | Email | Tags
     Returns (bytes, filename_ext).
     """
     if fmt in ("xlsx", "xls"):
@@ -576,12 +568,10 @@ def compile_numbers_to_output(numbers: list, fmt: str, tag: str = "") -> tuple:
     elif fmt == "csv":
         out = io.StringIO()
         w = csv.writer(out)
-        w.writerow(["First Name", "Last Name", "Mobile Number",
-                    "Language Code", "Country", "Email", "Groups"])
+        w.writerow(["Name", "Phone", "Country Code", "Email", "Tags"])
         for i, num in enumerate(numbers, 1):
             cc, local, country_name, lang_code = detect_country(num)
-            w.writerow(["ND" + str(i).zfill(4), "", local,
-                        lang_code, country_name, "", "indiana 2000"])
+            w.writerow(["ND" + str(i).zfill(4), local, cc, "", country_name])
         return out.getvalue().encode("utf-8"), "csv"
 
     elif fmt == "vcf":
