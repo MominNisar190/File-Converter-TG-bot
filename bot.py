@@ -1207,25 +1207,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if state == "compiler_ask_tag":
-        tag     = text.strip()
-        numbers = context.user_data.get("compiler_numbers", [])
-        fcb     = context.user_data.get("active_feature_cb")
-        if not numbers:
-            await update.message.reply_text("❌ No data found. Please start again.", reply_markup=back_keyboard(fcb))
-            return
-        context.user_data["compiler_tag"] = tag
-        context.user_data["state"]        = "compiler_ask_fmt"
-        total = len(numbers)
-        await update.message.reply_text(
-            "✅ Tag set: " + tag + "\n"
-            + THIN + "\n"
-            "📋 Total Numbers: " + str(total) + "\n\n"
-            "📤 Choose output format:" + FOOTER,
-            reply_markup=compiler_fmt_keyboard(fcb)
-        )
-        return
-
     await update.message.reply_text(
         "💡 Select a feature from the menu to get started.",
         reply_markup=main_menu_keyboard()
@@ -1490,19 +1471,17 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             numbers = [normalize_number(n) for n in numbers_raw]
             total   = len(numbers)
 
-            # Store numbers and ask for tag first
+            # Store numbers and directly ask output format (no tag step)
             context.user_data["compiler_numbers"] = numbers
             context.user_data["compiler_stem"]    = file_stem(fname)
-            context.user_data["state"]             = "compiler_ask_tag"
+            context.user_data["state"]             = "compiler_ask_fmt"
 
             await update.message.reply_text(
                 "📱 Numbers Loaded!\n"
                 + THIN + "\n"
                 "📋 Total Numbers: " + str(total) + "\n\n"
-                "🏷️ Enter a Tag for all contacts:\n"
-                "(This tag will be applied to every row)\n"
-                "Example: VIP, Client, India2025" + FOOTER,
-                reply_markup=back_keyboard(fcb)
+                "📤 Choose output format:" + FOOTER,
+                reply_markup=compiler_fmt_keyboard(fcb)
             )
 
         else:
